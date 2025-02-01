@@ -1,23 +1,18 @@
 package com.love_sync.demo.service;
 
-import com.auth0.jwt.JWT;
-import com.auth0.jwt.algorithms.Algorithm;
 import com.love_sync.demo.model.User;
 import com.love_sync.demo.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
-import java.util.Date;
+import java.util.Optional;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
 public class AuthService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
-
-    private static final String SECRET_KEY = "your_secret_key";
-    private static final long EXPIRATION_TIME = 86400000;
 
     public String registerUser(String email, String password, String name) {
         if (userRepository.findByEmail(email).isPresent()) {
@@ -29,11 +24,12 @@ public class AuthService {
                 .password(passwordEncoder.encode(password))
                 .name(name)
                 .verified(false)
+                .authToken(UUID.randomUUID().toString())
                 .build();
 
         userRepository.save(user);
 
-        return generateToken(user.getEmail());
+        return user.getAuthToken();
     }
 
     public String loginUser(String email, String password) {
@@ -44,13 +40,13 @@ public class AuthService {
             throw new RuntimeException("Неверный пароль");
         }
 
-        return generateToken(user.getEmail());
+        user.setAuthToken(UUID.randomUUID().toString());
+        userRepository.save(user);
+
+        return user.getAuthToken();
     }
 
-    private String generateToken(String email) {
-        return JWT.create()
-                .withSubject(email)
-                .withExpiresAt(new Date(System.currentTimeMillis() + EXPIRATION_TIME))
-                .sign(Algorithm.HMAC256(SECRET_KEY));
+    public Optional<User> getUserByToken(String token) {
+        return userRepository.findByAuthToken(token);
     }
 }
